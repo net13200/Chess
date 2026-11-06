@@ -21,6 +21,23 @@
     del(key) { try { localStorage.removeItem("sugichess." + key); } catch (_) { /* ignore */ } },
   };
 
+  // Levels used to be numbered 1-4; two new ones now sit between the old 1 and 2.
+  // Move saved choices so a child who picked Sprout still gets Sprout.
+  if (!store.get("levels6", false)) {
+    const map = { 1: 1, 2: 4, 3: 5, 4: 6 };
+    const lv = store.get("level", null);
+    if (map[lv]) store.set("level", map[lv]);
+    const game = store.get("game", null);
+    if (game && map[game.level]) { game.level = map[game.level]; store.set("game", game); }
+    const beaten = store.get("beaten", null);
+    if (beaten) {
+      const moved = {};
+      for (const k of Object.keys(beaten)) if (map[k]) moved[map[k]] = beaten[k];
+      store.set("beaten", moved);
+    }
+    store.set("levels6", true);
+  }
+
   // ---------- Sound ----------
   const sound = {
     on: store.get("sound", true),
@@ -117,7 +134,7 @@
   // ---------- Computer setup ----------
   const levelOf = (id) => {
     const l = E.LEVELS.find((x) => x.id === id) || E.LEVELS[1];
-    return { ...l, name: t("level" + l.id), blurb: t("level" + l.id + "Blurb") };
+    return { ...l, name: t("level_" + l.key), blurb: t("level_" + l.key + "Blurb") };
   };
   const levelLabel = (id) => levelOf(id).name + " " + levelOf(id).emoji;
   let setupLevel = store.get("level", 1);

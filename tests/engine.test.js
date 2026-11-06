@@ -56,6 +56,9 @@ console.log("perft ok");
   assert.strictEqual(E.sanOf(s, s.moveFromUci("a1a8")), "Rxa8+");
 }
 
+// Levels are numbered 1..n in order, each with text keys.
+E.LEVELS.forEach((l, i) => { assert.strictEqual(l.id, i + 1); assert.ok(l.key && l.emoji); });
+
 // Search finds mates and wins material.
 {
   const c = new E.Chess("6k1/5ppp/8/8/8/8/5PPP/R5K1 w - - 0 1");
@@ -76,7 +79,7 @@ console.log("perft ok");
   const g = new E.Chess();
   let st = g.status(), plies = 0;
   while (!st.over && plies < 200) {
-    const m = E.chooseMove(g, g.turn === E.WHITE ? 4 : 1);
+    const m = E.chooseMove(g, g.turn === E.WHITE ? E.LEVELS.length : 1);
     g.make(m); plies++; st = g.status();
   }
   console.log("Cedar vs Seedling:", st.reason, st.result, "after", plies, "plies");

@@ -731,22 +731,29 @@
     return { move: best, score: bestScore, nodes: s.nodes };
   }
 
-  // Difficulty levels for the computer player.
+  // Difficulty levels for the computer player, weakest first. `id` is the
+  // position in this list (shown as dots); `key` names the level for text.
+  //   depth         how many half-moves it looks ahead
+  //   noise         random centipawns added to each move's score (bigger = sloppier)
+  //   randomChance  chance of playing a completely random move
+  //   quiescence    whether it follows captures to the end before judging a move
   const LEVELS = [
-    { id: 1, name: "Seedling", emoji: "🌱", blurb: "Just learning. Makes lots of silly moves.", depth: 1, noise: 350, randomChance: 0.35 },
-    { id: 2, name: "Sprout", emoji: "🌿", blurb: "Grabs pieces it sees, but misses traps.", depth: 2, noise: 140, randomChance: 0.08 },
-    { id: 3, name: "Sapling", emoji: "🌳", blurb: "Thinks a few moves ahead.", depth: 3, noise: 35, randomChance: 0 },
-    { id: 4, name: "Cedar", emoji: "🌲", blurb: "A tough, careful player. Good luck!", depth: 7, timeMs: 1500, noise: 0, randomChance: 0 },
+    { id: 1, key: "seedling", name: "Seedling", emoji: "🌱", depth: 1, noise: 350, randomChance: 0.35, quiescence: false },
+    { id: 2, key: "leaf", name: "Leaf", emoji: "🍃", depth: 1, noise: 160, randomChance: 0.12, quiescence: false },
+    { id: 3, key: "plant", name: "Little Plant", emoji: "🪴", depth: 1, noise: 200, randomChance: 0.18, quiescence: true },
+    { id: 4, key: "sprout", name: "Sprout", emoji: "🌿", depth: 2, noise: 140, randomChance: 0.08, quiescence: true },
+    { id: 5, key: "sapling", name: "Sapling", emoji: "🌳", depth: 3, noise: 35, randomChance: 0, quiescence: true },
+    { id: 6, key: "cedar", name: "Cedar", emoji: "🌲", depth: 7, timeMs: 1500, noise: 0, randomChance: 0, quiescence: true },
   ];
 
   function chooseMove(chess, levelId, rng) {
     rng = rng || Math.random;
-    const level = LEVELS.find((l) => l.id === levelId) || LEVELS[1];
+    const level = LEVELS.find((l) => l.id === levelId) || LEVELS[0];
     const legal = chess.legalMoves();
     if (!legal.length) return null;
     if (level.noise === 0) return bestMove(chess, { depth: level.depth, timeMs: level.timeMs }).move;
     if (rng() < level.randomChance) return legal[Math.floor(rng() * legal.length)];
-    const scored = scoreRootMoves(chess, level.depth, { quiescence: level.id > 1 });
+    const scored = scoreRootMoves(chess, level.depth, { quiescence: level.quiescence });
     // Never miss a mate in one, even on the easiest level; it is more fun to lose to.
     let pick = null, top = -INF;
     for (const x of scored) {

@@ -5,8 +5,10 @@ A friendly chess game for kids, part of [SugiGames](https://net13200.github.io/S
 **Play it:** https://net13200.github.io/Chess/
 
 - **Play a friend**: two players on one screen, with a button to turn the board around.
-- **Play the computer**: four levels named after growing trees.
+- **Play the computer**: six levels named after growing plants.
   - 🌱 Seedling makes lots of silly moves.
+  - 🍃 Leaf plays for fun and sometimes spots a free piece.
+  - 🪴 Little Plant likes to capture and is starting to guard its pieces.
   - 🌿 Sprout grabs pieces but misses traps.
   - 🌳 Sapling thinks a few moves ahead.
   - 🌲 Cedar is a careful player.
