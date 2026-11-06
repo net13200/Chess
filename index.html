@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Sugi Chess</title>
+<meta name="description" content="A friendly chess game for kids: play a friend, play the computer at four levels, or solve chess riddles." />
+<meta name="theme-color" content="#7fbf9a" />
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="icons/icon-192.png" />
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- SugiGames logo splash (same kanji-painting animation as the SugiGames portal) -->
+<div id="splash" role="status" aria-label="Sugi Chess is loading">
+  <svg id="kanji-svg" viewBox="0 0 100 100" width="160" height="160" aria-hidden="true">
+    <defs>
+      <linearGradient id="trunkGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stop-color="#b07a50" />
+        <stop offset="100%" stop-color="#7c4e30" />
+      </linearGradient>
+      <linearGradient id="leafGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#8de89c" />
+        <stop offset="100%" stop-color="#2fae64" />
+      </linearGradient>
+    </defs>
+    <g fill="none" stroke="url(#trunkGradient)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+      <path class="kanji-stroke" d="M 14 34 C 24 33, 36 33.5, 46 34.5" />
+      <path class="kanji-stroke" d="M 30 12 C 29.5 32, 30 55, 30 88" />
+      <path class="kanji-stroke" d="M 30 42 C 25 50, 20 58, 16 66" />
+      <path class="kanji-stroke" d="M 30 42 C 35 50, 40 58, 44 66" />
+    </g>
+    <g fill="none" stroke="url(#leafGradient)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round">
+      <path class="kanji-stroke" d="M 76 14 C 68 20, 62 26, 58 32" />
+      <path class="kanji-stroke" d="M 86 40 C 76 47, 68 54, 62 60" />
+      <path class="kanji-stroke" d="M 96 68 C 84 76, 74 82, 66 90" />
+    </g>
+    <circle id="brush-tip" r="4.2" fill="#ffffff" opacity="0" />
+  </svg>
+  <div id="splash-word"><span class="word-sugi">Sugi</span><span class="word-games">Games</span></div>
+</div>
+
+<!-- Home -->
+<main id="screen-home" class="screen is-active">
+  <header class="hero">
+    <a class="brand-link" href="https://net13200.github.io/SugiGames/" aria-label="All SugiGames">
+      <img class="brand-icon" src="icons/sugigames.svg" alt="" width="56" height="56" />
+      <span class="brand-text"><span class="word-sugi">Sugi</span><span class="word-games">Games</span></span>
+    </a>
+    <div class="hero-art" aria-hidden="true" id="hero-art"></div>
+    <h1 class="title"><span class="word-sugi">Sugi</span> <span class="word-chess">Chess</span></h1>
+    <p class="tagline">Play, think and solve riddles!</p>
+  </header>
+  <nav class="menu" aria-label="Game modes">
+    <button class="menu-btn menu-btn--continue" id="btn-continue" hidden>
+      <span class="menu-emoji" aria-hidden="true">▶️</span>
+      <span class="menu-text"><strong>Keep playing</strong><small id="continue-detail">Finish your last game</small></span>
+    </button>
+    <button class="menu-btn menu-btn--friend" data-go="friend">
+      <span class="menu-emoji" aria-hidden="true">👫</span>
+      <span class="menu-text"><strong>Play a friend</strong><small>Two players, one screen</small></span>
+    </button>
+    <button class="menu-btn menu-btn--computer" data-go="setup">
+      <span class="menu-emoji" aria-hidden="true">🤖</span>
+      <span class="menu-text"><strong>Play the computer</strong><small>Four levels, from tiny seedling to giant cedar</small></span>
+    </button>
+    <button class="menu-btn menu-btn--riddles" data-go="practice">
+      <span class="menu-emoji" aria-hidden="true">🧩</span>
+      <span class="menu-text"><strong>Chess riddles</strong><small id="riddle-progress">Practice moves and clever tricks</small></span>
+    </button>
+  </nav>
+</main>
+
+<!-- Computer setup -->
+<section id="screen-setup" class="screen" aria-labelledby="setup-title">
+  <div class="topbar">
+    <button class="icon-btn" data-go="home" aria-label="Back to home">🏠</button>
+    <h2 id="setup-title">Play the computer</h2>
+    <span class="topbar-spacer"></span>
+  </div>
+  <div class="setup">
+    <h3>Who do you want to play?</h3>
+    <div class="levels" id="levels" role="radiogroup" aria-label="Difficulty"></div>
+    <h3>Pick your pieces</h3>
+    <div class="colors" role="radiogroup" aria-label="Your color">
+      <button class="color-btn" role="radio" data-color="w" aria-checked="true"><span class="color-piece" data-piece="wk"></span>White<small>moves first</small></button>
+      <button class="color-btn" role="radio" data-color="b" aria-checked="false"><span class="color-piece" data-piece="bk"></span>Black</button>
+      <button class="color-btn" role="radio" data-color="r" aria-checked="false"><span class="color-piece color-piece--random">🎲</span>Surprise me</button>
+    </div>
+    <button class="big-btn" id="btn-start">Let's play!</button>
+  </div>
+</section>
+
+<!-- Practice: riddle list -->
+<section id="screen-practice" class="screen" aria-labelledby="practice-title">
+  <div class="topbar">
+    <button class="icon-btn" data-go="home" aria-label="Back to home">🏠</button>
+    <h2 id="practice-title">Chess riddles</h2>
+    <span class="topbar-spacer star-total" id="star-total"></span>
+  </div>
+  <div class="practice" id="practice-list"></div>
+</section>
+
+<!-- Board (games and riddles) -->
+<section id="screen-play" class="screen" aria-labelledby="play-title">
+  <div class="topbar">
+    <button class="icon-btn" id="btn-leave" aria-label="Back">🏠</button>
+    <h2 id="play-title">Chess</h2>
+    <button class="icon-btn" id="btn-sound" aria-label="Sound on" aria-pressed="true">🔊</button>
+  </div>
+  <div class="play">
+    <div class="board-col">
+      <div class="player-bar" id="bar-top">
+        <span class="player-avatar"></span><span class="player-name"></span>
+        <span class="captured"></span><span class="adv"></span>
+      </div>
+      <div class="board-wrap">
+        <div class="board" id="board" role="grid" aria-label="Chess board"></div>
+        <svg class="arrows" id="arrows" viewBox="0 0 8 8" aria-hidden="true"></svg>
+      </div>
+      <div class="player-bar" id="bar-bottom">
+        <span class="player-avatar"></span><span class="player-name"></span>
+        <span class="captured"></span><span class="adv"></span>
+      </div>
+    </div>
+    <div class="side-col">
+      <div class="riddle-card" id="riddle-card" hidden>
+        <div class="riddle-meta"><span class="riddle-cat" id="riddle-cat"></span><span id="riddle-count"></span></div>
+        <h3 id="riddle-title"></h3>
+        <p id="riddle-prompt"></p>
+      </div>
+      <div class="bubble" id="bubble" aria-live="polite"><span class="bubble-face" id="bubble-face">🙂</span><span id="bubble-text"></span></div>
+      <div class="controls" id="game-controls">
+        <button class="ctl-btn" id="btn-undo"><span aria-hidden="true">↩️</span> Undo</button>
+        <button class="ctl-btn" id="btn-hint"><span aria-hidden="true">💡</span> Hint</button>
+        <button class="ctl-btn" id="btn-flip"><span aria-hidden="true">🔄</span> Turn board</button>
+        <button class="ctl-btn" id="btn-new"><span aria-hidden="true">✨</span> New game</button>
+      </div>
+      <div class="controls" id="riddle-controls" hidden>
+        <button class="ctl-btn" id="btn-prev"><span aria-hidden="true">⬅️</span> Back</button>
+        <button class="ctl-btn" id="btn-rhint"><span aria-hidden="true">💡</span> Hint</button>
+        <button class="ctl-btn" id="btn-retry"><span aria-hidden="true">🔁</span> Restart</button>
+        <button class="ctl-btn" id="btn-next">Next <span aria-hidden="true">➡️</span></button>
+      </div>
+      <ol class="move-list" id="move-list" aria-label="Moves played"></ol>
+    </div>
+  </div>
+</section>
+
+<!-- Promotion picker -->
+<div class="modal" id="promo-modal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="promo-title">
+    <h3 id="promo-title">Your pawn made it! Pick a new piece:</h3>
+    <div class="promo-choices" id="promo-choices"></div>
+  </div>
+</div>
+
+<!-- Game over / riddle solved -->
+<div class="modal" id="end-modal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="end-title">
+    <div class="end-emoji" id="end-emoji" aria-hidden="true">🎉</div>
+    <h3 id="end-title"></h3>
+    <p id="end-text"></p>
+    <div class="end-stars" id="end-stars" aria-hidden="true"></div>
+    <div class="end-actions" id="end-actions"></div>
+  </div>
+</div>
+
+<div class="confetti" id="confetti" aria-hidden="true"></div>
+
+<script src="splash.js"></script>
+<script src="engine.js"></script>
+<script src="pieces.js"></script>
+<script src="puzzles.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
