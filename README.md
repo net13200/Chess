@@ -45,4 +45,4 @@ To add a riddle, add an entry to `puzzles.js` and run `npm test`. The test check
 
 ## Deploy
 
-`.github/workflows/deploy.yml` runs the tests on every push. On the default branch it then publishes the site to GitHub Pages. In the repository settings, **Pages → Build and deployment → Source** must be set to **GitHub Actions**.
+`.github/workflows/deploy.yml` runs the tests on every push to `main` and on pull requests. For pushes to `main` it then publishes the site to GitHub Pages. In the repository settings, **Pages → Build and deployment → Source** must be set to **GitHub Actions**.
