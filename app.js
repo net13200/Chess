@@ -989,7 +989,29 @@
   // ---------- Start ----------
   applyLanguage();
 
+  // ---------- Updates for the installed app ----------
+  // Check for a new version on launch and whenever the app comes back to the
+  // front (installed apps are often resumed rather than restarted). When one
+  // arrives, reload: right away on the home screen, otherwise the next time the
+  // child is back home, so a game or riddle is never interrupted. Games are
+  // saved, so nothing is lost either way.
   if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
-    window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+    let updateReady = false;
+    const hadController = !!navigator.serviceWorker.controller;
+    const onHome = () => $("screen-home").classList.contains("is-active");
+    const reloadIfReady = () => { if (updateReady && onHome()) location.reload(); };
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (!hadController) return; // first install, the page is already fresh
+      updateReady = true;
+      reloadIfReady();
+    });
+    new MutationObserver(reloadIfReady).observe($("screen-home"), { attributes: true, attributeFilter: ["class"] });
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
+        document.addEventListener("visibilitychange", () => {
+          if (document.visibilityState === "visible") reg.update().catch(() => {});
+        });
+      }).catch(() => {});
+    });
   }
 })();

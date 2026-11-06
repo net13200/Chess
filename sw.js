@@ -1,13 +1,23 @@
-/* Offline support: serve the app shell from cache, refresh it in the background. */
-const CACHE = "sugichess-v2";
+/*
+ * Offline support. When online, always fetch the latest files (bypassing the
+ * browser's HTTP cache) and keep a copy; fall back to the copy when offline or
+ * when the network is too slow. This way an installed app picks up new versions
+ * as soon as it's opened, instead of showing an old cached copy.
+ */
+const CACHE = "sugichess-v3";
 const ASSETS = [
   "./", "index.html", "style.css", "app.js", "engine.js", "pieces.js", "puzzles.js",
   "splash.js", "i18n.js", "ai-worker.js", "manifest.webmanifest",
   "icons/icon.svg", "icons/icon-192.png", "icons/icon-512.png", "icons/sugigames.svg",
 ];
+const NETWORK_TIMEOUT_MS = 4000;
 
 self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  e.waitUntil(
+    caches.open(CACHE)
+      .then((c) => c.addAll(ASSETS.map((u) => new Request(u, { cache: "reload" }))))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener("activate", (e) => {
@@ -19,19 +29,26 @@ self.addEventListener("activate", (e) => {
 });
 
 self.addEventListener("fetch", (e) => {
-  if (e.request.method !== "GET") return;
-  e.respondWith(
-    caches.match(e.request).then((cached) => {
-      const network = fetch(e.request)
-        .then((res) => {
-          if (res.ok && new URL(e.request.url).origin === location.origin) {
-            const copy = res.clone();
-            caches.open(CACHE).then((c) => c.put(e.request, copy));
-          }
-          return res;
-        })
-        .catch(() => cached);
+  const req = e.request;
+  if (req.method !== "GET") return;
+  const url = new URL(req.url);
+  if (url.origin !== location.origin) return; // fonts etc.: let the browser handle them
+
+  e.respondWith((async () => {
+    const cache = await caches.open(CACHE);
+    const network = fetch(req, { cache: "no-cache" }).then((res) => {
+      if (res.ok) cache.put(req, res.clone());
+      return res;
+    });
+    try {
+      // Prefer the network, but don't keep a child waiting on a bad connection.
+      return await Promise.race([
+        network,
+        new Promise((_, reject) => setTimeout(() => reject(new Error("slow")), NETWORK_TIMEOUT_MS)),
+      ]);
+    } catch (_) {
+      const cached = await cache.match(req, { ignoreSearch: true });
       return cached || network;
-    })
-  );
+    }
+  })());
 });
