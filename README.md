@@ -21,6 +21,8 @@ A friendly chess game for kids, part of [SugiGames](https://net13200.github.io/S
 
 It's built for kids: big pieces with friendly faces, and dots that show where the tapped piece can go. You can tap or drag pieces. Undo and hints are always available, along with gentle sounds (which can be muted) and confetti when you win. It opens with the SugiGames logo animation and works offline once it has loaded.
 
+**Languages:** English and Hebrew (עברית), with a full right-to-left layout. Use the button on the home screen to switch. The app starts in Hebrew when the device language is Hebrew, and `?lang=he` or `?lang=en` in the address picks one directly.
+
 ## How it's built
 
 It's a static site with no build step and no dependencies.
@@ -29,7 +31,8 @@ It's a static site with no build step and no dependencies.
 | --- | --- |
 | `engine.js` | Chess rules: legal moves, check, mate, stalemate, the 50-move rule, repetition and insufficient material. Also has the alpha-beta search used by the computer levels and the riddle checker. |
 | `ai-worker.js` | Runs the computer player in a Web Worker so the board stays smooth. |
-| `puzzles.js` | The riddles, written as FEN plus the solution in UCI. |
+| `puzzles.js` | The riddles, written as FEN plus the solution in UCI, with Hebrew text for each. |
+| `i18n.js` | All English and Hebrew interface text. |
 | `pieces.js` | The piece artwork, drawn as inline SVG. |
 | `app.js`, `style.css`, `index.html` | The app itself. |
 | `splash.js` | The SugiGames logo animation, shared with the portal. |
@@ -41,7 +44,7 @@ npm start   # serves on http://localhost:8000
 npm test    # perft move-generation tests + checks every riddle with the engine
 ```
 
-To add a riddle, add an entry to `puzzles.js` and run `npm test`. The test checks that the position is legal and the solution is legal. For checkmate riddles it confirms the mate. For trick riddles it confirms that no other move is about as good.
+To add a riddle, add an entry to `puzzles.js` (including its Hebrew text in `PUZZLES_HE`) and run `npm test`. The test checks that the position is legal and the solution is legal. For checkmate riddles it confirms the mate. For trick riddles it confirms that no other move is about as good.
 
 ## Deploy
 

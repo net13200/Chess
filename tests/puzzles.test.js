@@ -11,6 +11,9 @@ for (const p of PUZZLES) {
   try {
     assert.ok(!ids.has(p.id), "duplicate id"); ids.add(p.id);
     assert.ok(CATEGORIES.some((c) => c.id === p.cat), "unknown category");
+    for (const k of ["title", "prompt", "hint", "explain"]) {
+      assert.ok(p.he && p.he[k] && /[\u0590-\u05FF]/.test(p.he[k]), "missing Hebrew " + k);
+    }
     const c = new E.Chess(p.fen);
     assert.strictEqual(c.fen().split(" ").slice(0, 4).join(" "), p.fen.split(" ").slice(0, 4).join(" "), "FEN round-trips");
     // The side not to move must not be in check (illegal position otherwise).
@@ -46,6 +49,7 @@ for (const p of PUZZLES) {
     }
   } catch (e) { fail(e.message); }
 }
+for (const cat of CATEGORIES) assert.ok(cat.he && cat.he.name && cat.he.blurb, "missing Hebrew category " + cat.id);
 for (const cat of CATEGORIES) assert.ok(PUZZLES.some((p) => p.cat === cat.id), "empty category " + cat.id);
 console.log(problems ? `${problems} problem(s)` : `all ${PUZZLES.length} riddles ok`);
 process.exit(problems ? 1 : 0);

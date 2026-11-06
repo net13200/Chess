@@ -42,7 +42,7 @@ jobs:
       - name: Collect site files
         run: |
           mkdir _site
-          cp -r index.html style.css app.js engine.js pieces.js puzzles.js splash.js ai-worker.js sw.js manifest.webmanifest icons _site/
+          cp -r index.html style.css app.js engine.js pieces.js puzzles.js i18n.js splash.js ai-worker.js sw.js manifest.webmanifest icons _site/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

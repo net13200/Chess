@@ -1,8 +1,8 @@
 /* Offline support: serve the app shell from cache, refresh it in the background. */
-const CACHE = "sugichess-v1";
+const CACHE = "sugichess-v2";
 const ASSETS = [
   "./", "index.html", "style.css", "app.js", "engine.js", "pieces.js", "puzzles.js",
-  "splash.js", "ai-worker.js", "manifest.webmanifest",
+  "splash.js", "i18n.js", "ai-worker.js", "manifest.webmanifest",
   "icons/icon.svg", "icons/icon-192.png", "icons/icon-512.png", "icons/sugigames.svg",
 ];
 

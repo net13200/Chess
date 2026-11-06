@@ -2,7 +2,10 @@
   "use strict";
 
   const E = window.SugiChess;
-  const { pieceSvg, NAMES } = window.SugiPieces;
+  const { pieceSvg } = window.SugiPieces;
+  const I18N = window.SugiI18n;
+  const t = I18N.t;
+  const pieceName = (ch) => t("pieces")[ch];
   const { PUZZLES, CATEGORIES } = window.SugiPuzzles;
   const $ = (id) => document.getElementById(id);
 
@@ -97,14 +100,14 @@
     btn.hidden = !saved;
     if (saved) {
       $("continue-detail").textContent = saved.mode === "computer"
-        ? "Your game against " + levelOf(saved.level).name + " " + levelOf(saved.level).emoji
-        : "Your game with a friend";
+        ? t("continueComputer", { name: levelLabel(saved.level) })
+        : t("continueFriend");
     }
     const stars = store.get("stars", {});
     const solved = PUZZLES.filter((p) => stars[p.id]).length;
     $("riddle-progress").textContent = solved
-      ? `${solved} of ${PUZZLES.length} solved. Keep going!`
-      : "Practice moves and clever tricks";
+      ? t("riddlesProgress", { n: solved, total: PUZZLES.length })
+      : t("riddlesSub");
   }
   $("btn-continue").addEventListener("click", () => {
     const saved = store.get("game", null);
@@ -112,16 +115,20 @@
   });
 
   // ---------- Computer setup ----------
-  const levelOf = (id) => E.LEVELS.find((l) => l.id === id) || E.LEVELS[1];
+  const levelOf = (id) => {
+    const l = E.LEVELS.find((x) => x.id === id) || E.LEVELS[1];
+    return { ...l, name: t("level" + l.id), blurb: t("level" + l.id + "Blurb") };
+  };
+  const levelLabel = (id) => levelOf(id).name + " " + levelOf(id).emoji;
   let setupLevel = store.get("level", 1);
   let setupColor = store.get("color", "w");
 
   function renderSetup() {
-    $("levels").innerHTML = E.LEVELS.map((l) =>
+    $("levels").innerHTML = E.LEVELS.map((x) => levelOf(x.id)).map((l) =>
       `<button class="level-btn" role="radio" data-level="${l.id}" aria-checked="${l.id === setupLevel}">` +
       `<span class="level-emoji" aria-hidden="true">${l.emoji}</span>` +
       `<span class="level-name">${l.name}</span>` +
-      `<span class="level-dots" aria-label="Level ${l.id} of ${E.LEVELS.length}">${"●".repeat(l.id)}${"○".repeat(E.LEVELS.length - l.id)}</span>` +
+      `<span class="level-dots" aria-label="${t("levelOf", { n: l.id, total: E.LEVELS.length })}">${"●".repeat(l.id)}${"○".repeat(E.LEVELS.length - l.id)}</span>` +
       `<small>${l.blurb}</small></button>`
     ).join("");
     document.querySelectorAll(".color-btn").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.color === setupColor)));
@@ -165,7 +172,8 @@
     puzzle: null,            // { p, index, step, mistakes, hints, solved }
   };
 
-  const colorName = (c) => (c === E.WHITE ? "White" : "Black");
+  const colorName = (c) => t(c === E.WHITE ? "white" : "black");
+  const colorKey = (c) => (c === E.WHITE ? "w" : "b");
   const turnChar = () => (S.chess.turn === E.WHITE ? "w" : "b");
 
   function startGame(opts) {
@@ -193,8 +201,7 @@
     $("move-list").hidden = false;
     document.querySelector(".play").classList.remove("is-riddle");
     $("btn-flip").hidden = S.mode === "computer";
-    $("play-title").textContent = S.mode === "computer"
-      ? `vs ${levelOf(S.level).name} ${levelOf(S.level).emoji}` : "Play a friend";
+    setPlayTitle();
     show("play");
     renderAll();
     afterMove(null, true);
@@ -236,6 +243,14 @@
     return S.flipped ? { dr: 7 - r, dc: 7 - f } : { dr: r, dc: f };
   }
 
+  function squareLabel(name, p) {
+    const ch = E.PIECE_CHARS[E.typeOf(p)];
+    const c = E.colorOf(p) ? "b" : "w";
+    const adj = t("colorAdj");
+    const color = (ch === "q" && adj[c + "f"]) || adj[c];
+    return t("squareLabel", { sq: name, color, piece: pieceName(ch) });
+  }
+
   function renderBoard(anim) {
     const c = S.chess;
     const checkSq = c.inCheck() ? c.kings[c.turn >> 3] : -1;
@@ -258,7 +273,7 @@
         el.className = cls.join(" ");
         const p = c.board[s];
         const name = E.sqName(s);
-        el.setAttribute("aria-label", p ? `${name} ${E.colorOf(p) ? "black" : "white"} ${NAMES[E.PIECE_CHARS[E.typeOf(p)]]}` : name);
+        el.setAttribute("aria-label", p ? squareLabel(name, p) : name);
         let html = "";
         if (p) {
           const color = E.colorOf(p) === E.WHITE ? "w" : "b";
@@ -328,9 +343,9 @@
       let name;
       if (S.mode === "computer") {
         const lv = levelOf(S.level);
-        name = col === S.human ? "You" : `${lv.name} ${lv.emoji}`;
+        name = col === S.human ? t("you") : `${lv.name} ${lv.emoji}`;
       } else if (S.mode === "puzzle") {
-        name = col === (S.puzzle.color) ? "You" : colorName(col === "w" ? E.WHITE : E.BLACK);
+        name = col === (S.puzzle.color) ? t("you") : colorName(col === "w" ? E.WHITE : E.BLACK);
       } else name = colorName(col === "w" ? E.WHITE : E.BLACK);
       el.querySelector(".player-name").textContent = name;
       const showCaps = S.mode !== "puzzle";
@@ -377,17 +392,16 @@
     b.classList.remove("pop"); void b.offsetWidth; b.classList.add("pop");
   }
 
-  const PRAISE = ["Nice move!", "Good thinking!", "Great!", "Ooh, clever!", "Well played!"];
 
   function turnMessage() {
     const c = S.chess;
     const check = c.inCheck();
     if (S.mode === "computer") {
-      if (turnChar() !== S.human) return say(`${levelOf(S.level).name} is thinking…`, "think");
-      return check ? say("Check! Your king is under attack. Keep it safe!", "check") : say("Your turn!", "happy");
+      if (turnChar() !== S.human) return say(t("thinking", { name: levelOf(S.level).name }), "think");
+      return check ? say(t("checkYou"), "check") : say(t("yourTurn"), "happy");
     }
-    const who = colorName(c.turn);
-    say(check ? `Check! ${who}, protect your king!` : `${who}'s turn`, check ? "check" : "happy");
+    const k = colorKey(c.turn);
+    say(check ? t("check_" + k) : t("turn_" + k), check ? "check" : "happy");
   }
 
   // ---------- Input: tap or drag ----------
@@ -490,8 +504,8 @@
     const color = turnChar();
     const modal = $("promo-modal");
     const box = $("promo-choices");
-    box.innerHTML = [E.QUEEN, E.ROOK, E.BISHOP, E.KNIGHT].map((t) =>
-      `<button class="promo-btn" data-promo="${t}" aria-label="${NAMES[E.PIECE_CHARS[t]]}">${pieceSvg(color, E.PIECE_CHARS[t])}<span>${NAMES[E.PIECE_CHARS[t]]}</span></button>`
+    box.innerHTML = [E.QUEEN, E.ROOK, E.BISHOP, E.KNIGHT].map((pt) =>
+      `<button class="promo-btn" data-promo="${pt}" aria-label="${pieceName(E.PIECE_CHARS[pt])}">${pieceSvg(color, E.PIECE_CHARS[pt])}<span>${pieceName(E.PIECE_CHARS[pt])}</span></button>`
     ).join("");
     modal.hidden = false;
     box.querySelector("button").focus();
@@ -538,7 +552,8 @@
       turnMessage();
       computerMove();
     } else if (praise && !st.check) {
-      say(PRAISE[Math.floor(Math.random() * PRAISE.length)] + " " + (S.mode === "computer" ? "Your turn!" : `${colorName(S.chess.turn)}'s turn`), "wow");
+      const praise = t("praise");
+      say(praise[Math.floor(Math.random() * praise.length)] + " " + (S.mode === "computer" ? t("yourTurn") : t("turn_" + colorKey(S.chess.turn))), "wow");
     } else {
       turnMessage();
     }
@@ -567,32 +582,27 @@
     if (st.reason === "checkmate") {
       if (S.mode === "computer") {
         if (winner === S.human) {
-          emoji = "🏆"; title = "Checkmate! You win!"; text = `You beat ${levelOf(S.level).name} ${levelOf(S.level).emoji}. Amazing!`;
+          emoji = "🏆"; title = t("winTitle"); text = t("winText", { name: levelLabel(S.level) });
           sound.win(); confetti();
           const beaten = store.get("beaten", {}); beaten[S.level] = true; store.set("beaten", beaten);
         } else {
-          emoji = "🌱"; title = "Checkmate!"; text = `${levelOf(S.level).name} won this time. Every game makes you stronger. Try again?`;
+          emoji = "🌱"; title = t("loseTitle"); text = t("loseText", { name: levelOf(S.level).name });
           sound.lose(); mood = "sad";
         }
       } else {
-        emoji = "🏆"; title = `Checkmate! ${winner === "w" ? "White" : "Black"} wins!`; text = "What a game. Well played, both of you!";
+        emoji = "🏆"; title = t("mate_" + winner); text = t("friendWinText");
         sound.win(); confetti();
       }
     } else {
       emoji = "🤝"; sound.draw();
-      title = "It's a tie!";
-      text = {
-        stalemate: "Stalemate: the player to move isn't in check but has no legal moves.",
-        material: "Neither side has enough pieces left to checkmate.",
-        fifty: "Fifty moves in a row without a capture or a pawn move.",
-        repetition: "The same position happened three times.",
-      }[st.reason];
+      title = t("tieTitle");
+      text = t("tie_" + st.reason);
     }
     say(title, mood || (st.reason === "checkmate" ? "wow" : "tie"));
     openEnd(emoji, title, text, 0, [
-      { label: "Play again", primary: true, run: () => startGame({ mode: S.mode, level: S.level, human: S.human }) },
-      { label: "Look at the board", run: () => {} },
-      { label: "Home", run: () => show("home") },
+      { label: t("playAgain"), primary: true, run: () => startGame({ mode: S.mode, level: S.level, human: S.human }) },
+      { label: t("lookAtBoard"), run: () => {} },
+      { label: t("home"), run: () => show("home") },
     ]);
   }
 
@@ -654,13 +664,13 @@
     S.selected = -1; S.targets = []; S.hint = null;
     renderAll();
     saveGame();
-    say("Okay, let's try that again!", "happy");
+    say(t("undoSay"), "happy");
   });
 
   $("btn-hint").addEventListener("click", async () => {
     if (!humanTurn()) return;
     const token = S.token, ply = S.moves.length;
-    say("Let me think of a good move…", "think");
+    say(t("hintThinking"), "think");
     S.busy = true;
     const uci = await askEngine("hint", S.startFen, S.moves.slice(), 4);
     S.busy = false;
@@ -670,8 +680,8 @@
     S.hint = { from: m.from, to: m.to };
     S.selected = -1; S.targets = [];
     renderBoard();
-    const piece = NAMES[E.PIECE_CHARS[E.typeOf(m.piece)]];
-    say(`How about moving your ${piece} from ${E.sqName(m.from)} to ${E.sqName(m.to)}?`, "hint");
+    const piece = pieceName(E.PIECE_CHARS[E.typeOf(m.piece)]);
+    say(t("hintSay", { piece, from: I18N.sq(E.sqName(m.from)), to: I18N.sq(E.sqName(m.to)) }), "hint");
   });
 
   $("btn-flip").addEventListener("click", () => {
@@ -681,7 +691,7 @@
   });
 
   $("btn-new").addEventListener("click", () => {
-    if (S.moves.length && !S.over && !confirm("Start a new game?")) return;
+    if (S.moves.length && !S.over && !confirm(t("confirmNew"))) return;
     if (S.mode === "computer") show("setup");
     else startGame({ mode: S.mode });
   });
@@ -696,7 +706,7 @@
     const b = $("btn-sound");
     b.textContent = sound.on ? "🔊" : "🔇";
     b.setAttribute("aria-pressed", String(sound.on));
-    b.setAttribute("aria-label", sound.on ? "Sound on" : "Sound off");
+    b.setAttribute("aria-label", t(sound.on ? "soundOn" : "soundOff"));
   }
   $("btn-sound").addEventListener("click", () => { sound.on = !sound.on; store.set("sound", sound.on); renderSoundBtn(); });
   renderSoundBtn();
@@ -709,6 +719,9 @@
   });
 
   // ---------- Practice riddles ----------
+  const catOf = (cat) => (I18N.lang === "he" && cat.he) || cat;
+  const textOf = (p) => (I18N.lang === "he" && p.he) || p;
+
   function renderPractice() {
     const stars = store.get("stars", {});
     const total = PUZZLES.reduce((n, p) => n + (stars[p.id] || 0), 0);
@@ -716,16 +729,17 @@
     $("practice-list").innerHTML = CATEGORIES.map((cat) => {
       const items = PUZZLES.map((p, i) => ({ p, i })).filter((x) => x.p.cat === cat.id);
       const done = items.filter((x) => stars[x.p.id]).length;
+      const catText = catOf(cat);
       return `<section class="cat" style="--cat:${cat.color}">
         <div class="cat-head"><span class="cat-emoji" aria-hidden="true">${cat.emoji}</span>
-          <div><h3>${cat.name}</h3><p>${cat.blurb}</p></div>
+          <div><h3>${catText.name}</h3><p>${catText.blurb}</p></div>
           <span class="cat-done">${done}/${items.length}</span></div>
         <div class="tiles">${items.map(({ p, i }) => {
           const st = stars[p.id] || 0;
           return `<button class="tile${st ? " solved" : ""}" data-puzzle="${i}">
             <span class="tile-board" aria-hidden="true">${miniBoard(p.fen)}</span>
-            <span class="tile-title">${p.title}</span>
-            <span class="tile-stars" aria-label="${st} of 3 stars">${[1, 2, 3].map((k) => `<b class="${k <= st ? "on" : ""}">★</b>`).join("")}</span>
+            <span class="tile-title">${textOf(p).title}</span>
+            <span class="tile-stars" aria-label="${t("starsOf", { n: st })}">${[1, 2, 3].map((k) => `<b class="${k <= st ? "on" : ""}">★</b>`).join("")}</span>
           </button>`;
         }).join("")}</div></section>`;
     }).join("");
@@ -765,20 +779,17 @@
     const cat = CATEGORIES.find((c) => c.id === p.cat);
     $("riddle-card").hidden = false;
     $("riddle-card").style.setProperty("--cat", cat.color);
-    $("riddle-cat").textContent = `${cat.emoji} ${cat.name}`;
-    $("riddle-count").textContent = `${index + 1} / ${PUZZLES.length}`;
-    $("riddle-title").textContent = p.title;
-    $("riddle-prompt").textContent = p.prompt;
+    renderRiddleCard();
     $("riddle-controls").hidden = false;
     $("game-controls").hidden = true;
     $("move-list").hidden = true;
     document.querySelector(".play").classList.add("is-riddle");
     $("btn-prev").disabled = index === 0;
     $("btn-next").disabled = index === PUZZLES.length - 1;
-    $("play-title").textContent = "Riddle";
+    setPlayTitle();
     show("play");
     renderAll();
-    say(`${colorName(S.chess.turn)} to move. You can do it!`, "happy");
+    say(t("riddleStart_" + colorKey(S.chess.turn)), "happy");
   }
 
   function playerMovesSoFar() {
@@ -800,14 +811,14 @@
         pz.step++;
         return puzzleReply(reply);
       }
-      return puzzleWrong(m, "Hmm, not quite. Try again!");
+      return puzzleWrong(m, t("wrong"));
     }
 
     // Checkmate riddles: any mate in time counts.
     applyMove(m);
     if (S.chess.isCheckmate()) return puzzleSolved();
     const st = S.chess.status();
-    if (st.reason === "stalemate") return puzzleWrong(null, "Oh no, that's stalemate! Black can't move, so it's a tie. Try again!");
+    if (st.reason === "stalemate") return puzzleWrong(null, t("wrongStalemate"));
     const left = p.mateIn - playerMovesSoFar();
     if (left >= 1 && E.forcesMateAfter(S.chess, left + 1)) {
       // Pick Black's reply: the scripted one if we're still on the main line, else the toughest defence.
@@ -823,24 +834,24 @@
         reply = E.uciOf(best);
       }
       pz.step += 2;
-      say(left > 1 ? "Good start! Keep going…" : "Good! Now finish it!", "wow");
+      say(t(left > 1 ? "goodStart" : "goodFinish"), "wow");
       return puzzleReply(reply, true);
     }
-    puzzleWrong(null, S.chess.inCheck() ? "That's check, but the king can still escape. Try again!" : "That's not checkmate yet. Try again!");
+    puzzleWrong(null, t(S.chess.inCheck() ? "checkNotMate" : "notMate"));
   }
 
   function puzzleReply(uci, keepMessage) {
     const token = S.token;
     S.busy = true;
     updateLock();
-    if (!keepMessage) say("Good! Now watch…", "wow");
+    if (!keepMessage) say(t("nowWatch"), "wow");
     setTimeout(() => {
       if (token !== S.token) return;
       S.busy = false;
       const m = S.chess.moveFromUci(uci);
       if (m) applyMove(m);
-      if (!keepMessage || S.puzzle.p.goal === "moves") say("Your turn again. What's next?", "think");
-      else say("Your move: find the checkmate!", "think");
+      if (!keepMessage || S.puzzle.p.goal === "moves") say(t("yourTurnAgain"), "think");
+      else say(t("findMate"), "think");
       updateLock();
     }, 750);
   }
@@ -872,16 +883,16 @@
     all[pz.p.id] = Math.max(all[pz.p.id] || 0, stars);
     store.set("stars", all);
     updateLock();
-    say("You solved it! 🎉", "wow");
+    say(t("solvedSay"), "wow");
     setTimeout(() => {
       sound.win(); confetti();
       const last = pz.index === PUZZLES.length - 1;
-      openEnd(stars === 3 ? "🌟" : "🎉", stars === 3 ? "Perfect!" : "You solved it!", pz.p.explain, stars, [
+      openEnd(stars === 3 ? "🌟" : "🎉", t(stars === 3 ? "perfect" : "solved"), textOf(pz.p).explain, stars, [
         last
-          ? { label: "All riddles", primary: true, run: () => show("practice") }
-          : { label: "Next riddle", primary: true, run: () => startPuzzle(pz.index + 1) },
-        { label: "Try again", run: () => startPuzzle(pz.index) },
-        ...(last ? [] : [{ label: "All riddles", run: () => show("practice") }]),
+          ? { label: t("allRiddles"), primary: true, run: () => show("practice") }
+          : { label: t("nextRiddle"), primary: true, run: () => startPuzzle(pz.index + 1) },
+        { label: t("tryAgain"), run: () => startPuzzle(pz.index) },
+        ...(last ? [] : [{ label: t("allRiddles"), run: () => show("practice") }]),
       ]);
     }, 600);
   }
@@ -902,10 +913,10 @@
     pz.hints++;
     if (!S.hint) {
       S.hint = { from: m.from, to: -1 };
-      say(pz.step === 0 ? p.hint : `Try moving the piece that's glowing.`, "hint");
+      say(pz.step === 0 ? textOf(p).hint : t("hintGlow"), "hint");
     } else {
       S.hint = { from: m.from, to: m.to };
-      say(`Move the glowing piece to ${E.sqName(m.to)}.`, "hint");
+      say(t("hintGlowTo", { sq: I18N.sq(E.sqName(m.to)) }), "hint");
     }
     S.selected = -1; S.targets = [];
     renderBoard();
@@ -914,8 +925,52 @@
   $("btn-prev").addEventListener("click", () => S.puzzle && S.puzzle.index > 0 && startPuzzle(S.puzzle.index - 1));
   $("btn-next").addEventListener("click", () => S.puzzle && S.puzzle.index < PUZZLES.length - 1 && startPuzzle(S.puzzle.index + 1));
 
+  // ---------- Language ----------
+  function setPlayTitle() {
+    $("play-title").textContent = S.mode === "puzzle" ? t("riddle")
+      : S.mode === "computer" ? t("vs", { name: levelLabel(S.level) }) : t("friendTitle");
+  }
+
+  function renderRiddleCard() {
+    if (!S.puzzle) return;
+    const { p, index } = S.puzzle;
+    const cat = CATEGORIES.find((c) => c.id === p.cat);
+    $("riddle-cat").textContent = `${cat.emoji} ${catOf(cat).name}`;
+    $("riddle-count").textContent = I18N.sq(`${index + 1} / ${PUZZLES.length}`);
+    $("riddle-title").textContent = textOf(p).title;
+    $("riddle-prompt").textContent = textOf(p).prompt;
+  }
+
+  function applyLanguage() {
+    const he = I18N.lang === "he";
+    document.documentElement.lang = I18N.lang;
+    document.documentElement.dir = he ? "rtl" : "ltr";
+    document.title = t("docTitle");
+    document.querySelectorAll("[data-i18n]").forEach((el) => { el.textContent = t(el.dataset.i18n); });
+    document.querySelectorAll("[data-i18n-aria]").forEach((el) => el.setAttribute("aria-label", t(el.dataset.i18nAria)));
+    const lb = $("btn-lang");
+    $("lang-label").textContent = t("langButton");
+    lb.lang = he ? "en" : "he";
+    lb.setAttribute("aria-label", t("langButtonLabel"));
+    renderSoundBtn();
+    renderHome();
+    renderSetup();
+    if (document.getElementById("screen-practice").classList.contains("is-active")) renderPractice();
+    if (S.chess) {
+      setPlayTitle();
+      renderRiddleCard();
+      renderAll();
+      if (S.mode !== "puzzle" && !S.over && !S.busy) turnMessage();
+    }
+  }
+
+  $("btn-lang").addEventListener("click", () => {
+    I18N.setLang(I18N.lang === "he" ? "en" : "he");
+    applyLanguage();
+  });
+
   // ---------- Start ----------
-  renderHome();
+  applyLanguage();
 
   if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
     window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
