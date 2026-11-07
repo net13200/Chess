@@ -558,6 +558,26 @@
     -50, -30, -30, -30, -30, -30, -30, -50,
   ];
 
+  // Mating technique against a bare king: when one side has only its king left
+  // and the other is well ahead, reward driving that king to the edge and
+  // bringing the winning king close. Without this the search shuffles around.
+  function mopUp(chess, score) {
+    if (Math.abs(score) < 400) return 0;
+    const b = chess.board;
+    const loser = score > 0 ? BLACK : WHITE;
+    for (let s = 0; s < 128; s++) {
+      if (!onBoard(s)) { s += 7; continue; }
+      const p = b[s];
+      if (p && colorOf(p) === loser && typeOf(p) !== KING) return 0;
+    }
+    const lk = chess.kings[loser >> 3], wk = chess.kings[(loser ^ 8) >> 3];
+    const r = rowOf(lk), f = fileOf(lk);
+    const centre = Math.max(3 - r, r - 4) + Math.max(3 - f, f - 4);       // 0 (centre) .. 6 (corner)
+    const near = Math.abs(rowOf(lk) - rowOf(wk)) + Math.abs(fileOf(lk) - fileOf(wk));
+    const bonus = centre * 10 + (14 - near) * 4;
+    return loser === BLACK ? bonus : -bonus;
+  }
+
   // Score from the side to move's point of view.
   function evaluate(chess) {
     const b = chess.board;
@@ -577,6 +597,7 @@
     const endgame = nonPawn <= 2600;
     const kt = endgame ? KING_END : KING_MID;
     score += kt[wk] - kt[bk];
+    score += mopUp(chess, score);
     return chess.turn === WHITE ? score : -score;
   }
 
@@ -592,6 +613,11 @@
     this.tt = new Map();
     this.killers = [];
     this.useQuiescence = opts.quiescence !== false;
+    // Mate searches turn the transposition table off: its stored mate scores are
+    // relative to the ply they were found at, which would blur exact mate distances.
+    this.useTT = !opts.noTT;
+    // Hard cap so long chains of checks (each extends the search) can't run away.
+    this.maxPly = opts.maxPly || 64;
     // Keys of positions already played in the game, for repetition draws.
     this.rootPly = chess.keys.length - 1;
   }
@@ -650,13 +676,14 @@
     if (ply > 0) {
       if (chess.half >= 100 || this.isRepeat()) return 0;
     }
+    if (ply >= this.maxPly) return evaluate(chess);
     const inCheck = chess.inCheck();
     if (inCheck) depth++;
     if (depth <= 0) return this.useQuiescence ? this.quiesce(alpha, beta, ply) : evaluate(chess);
     if (this.timeUp()) return 0;
 
     const ttKey = chess.hashLo;
-    const tte = this.tt.get(ttKey);
+    const tte = this.useTT ? this.tt.get(ttKey) : null;
     let ttMove = null;
     if (tte && tte.hi === chess.hashHi) {
       ttMove = tte.move;
@@ -689,6 +716,7 @@
       }
     }
     if (!legal) return inCheck ? -MATE + ply : 0;
+    if (!this.useTT) return best;
     if (this.tt.size > 400000) this.tt.clear();
     this.tt.set(ttKey, {
       hi: chess.hashHi, depth, score: best, move: bestMove,
@@ -763,30 +791,51 @@
     return pick;
   }
 
-  // Can the side to move force mate in at most n of its own moves?
-  // Returns the list of moves that do it (empty if none).
+  // ---------- Mate search (for riddles) ----------
+  // An alpha-beta search with exact mate scores: a position where the side to
+  // move is mated at ply k scores -(MATE - k). Checks extend the search, so a
+  // mate delivered on the last ply is always seen.
+  function mateSearcher(chess, plies) {
+    return new Searcher(chess, { quiescence: false, noTT: true, maxPly: plies + 12 });
+  }
+
+  // Attacker to move: the moves that force mate within n of the attacker's moves.
   function mateMoves(chess, n) {
+    const plies = 2 * n - 1, need = MATE - plies;
+    const s = mateSearcher(chess, plies);
     const out = [];
     for (const m of chess.legalMoves()) {
       chess.make(m);
-      if (forcesMateAfter(chess, n)) out.push(m);
+      const v = -s.negamax(plies - 1, -need, -need + 1, 1);
       chess.unmake();
+      if (v >= need) out.push(m);
     }
     return out;
   }
 
-  // Side to move is the defender; true if every defence loses within n-1 more attacker moves.
-  function forcesMateAfter(chess, n) {
+  // Defender to move: true if the attacker mates within k more attacker moves
+  // whatever the defender does (k = 0: the defender is already checkmated).
+  function forcesMate(chess, k) {
     const replies = chess.legalMoves();
     if (!replies.length) return chess.inCheck();
-    if (n <= 1) return false;
-    for (const r of replies) {
+    if (k <= 0) return false;
+    const plies = 2 * k, limit = -(MATE - plies);
+    const s = mateSearcher(chess, plies);
+    return s.negamax(plies, limit, limit + 1, 0) <= limit;
+  }
+
+  // Defender to move: the reply that holds out longest against a mate within k moves.
+  function bestDefence(chess, k) {
+    const plies = 2 * k;
+    const s = mateSearcher(chess, plies);
+    let best = null, bestScore = -INF;
+    for (const r of chess.legalMoves()) {
       chess.make(r);
-      const ok = mateMoves(chess, n - 1).length > 0;
+      const v = -s.negamax(plies - 1, -INF, INF, 1);
       chess.unmake();
-      if (!ok) return false;
+      if (v > bestScore) { bestScore = v; best = r; }
     }
-    return true;
+    return best;
   }
 
   // Fewest attacker moves needed to mate from here (attacker to move), up to max; Infinity if none.
@@ -795,12 +844,35 @@
     return Infinity;
   }
 
+  // Brute-force versions, used by the tests to double-check the fast search.
+  function mateMovesExact(chess, n) {
+    const out = [];
+    for (const m of chess.legalMoves()) {
+      chess.make(m);
+      if (forcesMateExact(chess, n - 1)) out.push(m);
+      chess.unmake();
+    }
+    return out;
+  }
+  function forcesMateExact(chess, k) {
+    const replies = chess.legalMoves();
+    if (!replies.length) return chess.inCheck();
+    if (k <= 0) return false;
+    for (const r of replies) {
+      chess.make(r);
+      const ok = mateMovesExact(chess, k).length > 0;
+      chess.unmake();
+      if (!ok) return false;
+    }
+    return true;
+  }
+
   const api = {
     Chess, START_FEN, PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING, WHITE, BLACK,
     FLAG_EP, FLAG_CASTLE, FLAG_DOUBLE,
     sqName, parseSq, typeOf, colorOf, rowOf, fileOf, uciOf, sanOf,
     evaluate, bestMove, scoreRootMoves, chooseMove, LEVELS, MATE,
-    mateMoves, forcesMateAfter, mateDistance, PIECE_CHARS,
+    mateMoves, forcesMate, bestDefence, mateDistance, mateMovesExact, PIECE_CHARS,
   };
   root.SugiChess = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;

@@ -9,6 +9,9 @@ self.onmessage = (e) => {
   let move;
   if (kind === "hint") {
     move = E.bestMove(chess, { depth: 4, timeMs: 900 }).move;
+  } else if (kind === "defend") {
+    // "Finish it yourself" riddles: the lone king runs away as well as it can.
+    move = E.bestMove(chess, { depth: 4, timeMs: 600 }).move;
   } else {
     move = E.chooseMove(chess, level);
   }

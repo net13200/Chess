@@ -6,7 +6,7 @@
   const I18N = window.SugiI18n;
   const t = I18N.t;
   const pieceName = (ch) => t("pieces")[ch];
-  const { PUZZLES, CATEGORIES } = window.SugiPuzzles;
+  const { PUZZLES, CATEGORIES, TIERS } = window.SugiPuzzles;
   const $ = (id) => document.getElementById(id);
 
   // ---------- Storage (all optional: the app works without it) ----------
@@ -232,7 +232,7 @@
 
   const humanTurn = () =>
     !S.over && !S.busy && (S.mode !== "computer" || turnChar() === S.human) &&
-    (S.mode !== "puzzle" || !S.puzzle.solved);
+    (S.mode !== "puzzle" || !S.puzzle.done);
 
   // ---------- Board rendering ----------
   const boardEl = $("board");
@@ -739,11 +739,22 @@
   const catOf = (cat) => (I18N.lang === "he" && cat.he) || cat;
   const textOf = (p) => (I18N.lang === "he" && p.he) || p;
 
+  const tierOfPuzzle = (p) => CATEGORIES.find((c) => c.id === p.cat).tier;
+  let practiceTier = store.get("tier", 1);
+
   function renderPractice() {
     const stars = store.get("stars", {});
     const total = PUZZLES.reduce((n, p) => n + (stars[p.id] || 0), 0);
     $("star-total").textContent = `★ ${total}/${PUZZLES.length * 3}`;
-    $("practice-list").innerHTML = CATEGORIES.map((cat) => {
+    $("tier-tabs").innerHTML = TIERS.map((tier) => {
+      const list = PUZZLES.filter((p) => tierOfPuzzle(p) === tier.id);
+      const got = list.reduce((n, p) => n + (stars[p.id] || 0), 0);
+      const name = I18N.lang === "he" ? tier.he : tier.name;
+      return `<button class="tier-tab" role="tab" data-tier="${tier.id}" aria-selected="${tier.id === practiceTier}">` +
+        `<span class="tier-emoji" aria-hidden="true">${tier.emoji}</span><span class="tier-name">${name}</span>` +
+        `<span class="tier-stars">★ ${got}/${list.length * 3}</span></button>`;
+    }).join("");
+    $("practice-list").innerHTML = CATEGORIES.filter((cat) => cat.tier === practiceTier).map((cat) => {
       const items = PUZZLES.map((p, i) => ({ p, i })).filter((x) => x.p.cat === cat.id);
       const done = items.filter((x) => stars[x.p.id]).length;
       const catText = catOf(cat);
@@ -777,6 +788,14 @@
     return html;
   }
 
+  $("tier-tabs").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-tier]");
+    if (!b) return;
+    practiceTier = +b.dataset.tier;
+    store.set("tier", practiceTier);
+    renderPractice();
+  });
+
   $("practice-list").addEventListener("click", (e) => {
     const t = e.target.closest("[data-puzzle]");
     if (t) startPuzzle(+t.dataset.puzzle);
@@ -791,7 +810,9 @@
     S.moves = []; S.sans = [];
     S.selected = -1; S.targets = []; S.lastMove = null; S.hint = null;
     S.busy = false; S.over = false;
-    S.puzzle = { p, index, step: 0, mistakes: 0, hints: 0, solved: false, color: turnChar() };
+    S.puzzle = { p, index, step: 0, mistakes: 0, hints: 0, solved: false, done: false, used: 0, hintAt: -1, hintStage: 0, color: turnChar() };
+    practiceTier = tierOfPuzzle(p);
+    store.set("tier", practiceTier);
     S.flipped = S.chess.turn === E.BLACK;
     const cat = CATEGORIES.find((c) => c.id === p.cat);
     $("riddle-card").hidden = false;
@@ -806,7 +827,8 @@
     setPlayTitle();
     show("play");
     renderAll();
-    say(t("riddleStart_" + colorKey(S.chess.turn)), "happy");
+    if (p.goal === "finish") say(t("finishStart", { n: p.maxMoves }), "happy");
+    else say(t("riddleStart_" + colorKey(S.chess.turn)), "happy");
   }
 
   function playerMovesSoFar() {
@@ -831,30 +853,81 @@
       return puzzleWrong(m, t("wrong"));
     }
 
+    if (p.goal === "finish") return finishMove(m);
+
     // Checkmate riddles: any mate in time counts.
     applyMove(m);
     if (S.chess.isCheckmate()) return puzzleSolved();
     const st = S.chess.status();
     if (st.reason === "stalemate") return puzzleWrong(null, t("wrongStalemate"));
     const left = p.mateIn - playerMovesSoFar();
-    if (left >= 1 && E.forcesMateAfter(S.chess, left + 1)) {
-      // Pick Black's reply: the scripted one if we're still on the main line, else the toughest defence.
-      let reply = onScript && uci === expected ? p.solution[pz.step + 1] : null;
-      if (!reply || !S.chess.moveFromUci(reply)) {
-        let best = null, bestDist = -1;
-        for (const r of S.chess.legalMoves()) {
-          S.chess.make(r);
-          const d = E.mateDistance(S.chess, left);
-          S.chess.unmake();
-          if (d > bestDist) { bestDist = d; best = r; }
-        }
-        reply = E.uciOf(best);
+    const mainLine = onScript && uci === expected && p.solution[pz.step + 1];
+    // Off the main line, ask the engine whether this move still forces mate in time.
+    // That search can take a moment on long mates, so let the move draw first.
+    const token = S.token;
+    S.busy = true;
+    updateLock();
+    setTimeout(() => {
+      if (token !== S.token) return;
+      S.busy = false;
+      if (left >= 1 && (mainLine || E.forcesMate(S.chess, left))) {
+        // Black's reply: the scripted one on the main line, else the toughest defence.
+        let reply = mainLine ? p.solution[pz.step + 1] : null;
+        if (!reply || !S.chess.moveFromUci(reply)) reply = E.uciOf(E.bestDefence(S.chess, left));
+        pz.step += 2;
+        say(t(left > 1 ? "goodStart" : "goodFinish"), "wow");
+        return puzzleReply(reply, true);
       }
-      pz.step += 2;
-      say(t(left > 1 ? "goodStart" : "goodFinish"), "wow");
-      return puzzleReply(reply, true);
-    }
-    puzzleWrong(null, t(S.chess.inCheck() ? "checkNotMate" : "notMate"));
+      puzzleWrong(null, t(S.chess.inCheck() ? "checkNotMate" : "notMate"));
+    }, mainLine ? 0 : 40);
+  }
+
+  // ---------- "Finish it yourself": mate a defending computer within maxMoves ----------
+  function finishMove(m) {
+    const pz = S.puzzle, p = pz.p;
+    applyMove(m);
+    pz.used++;
+    renderRiddleCard();
+    if (S.chess.isCheckmate()) return puzzleSolved();
+    const st = S.chess.status();
+    if (st.over) return puzzleFailed(finishEnd(st.reason));
+    if (pz.used >= p.maxMoves) return puzzleFailed("moves");
+    const token = S.token;
+    S.busy = true;
+    updateLock();
+    say(t("runningAway"), "think");
+    const started = Date.now();
+    askEngine("defend", p.fen, S.moves.slice(), 0).then((reply) => {
+      setTimeout(() => {
+        if (token !== S.token) return;
+        S.busy = false;
+        const r = reply && S.chess.moveFromUci(reply);
+        if (r) applyMove(r);
+        const after = S.chess.status();
+        if (after.over) return puzzleFailed(finishEnd(after.reason));
+        say(movesLeftText(p.maxMoves - pz.used), "happy");
+        updateLock();
+      }, Math.max(0, 550 - (Date.now() - started)));
+    });
+  }
+
+  const movesLeftText = (n) => (n === 1 ? t("movesLeftOne") : t("movesLeft", { n }));
+
+  // Why a "finish it yourself" game ended without checkmate.
+  const finishEnd = (reason) => (reason === "stalemate" ? "stalemate" : reason === "material" ? "lost" : "repeat");
+
+  function puzzleFailed(kind) {
+    const pz = S.puzzle;
+    pz.done = true;
+    updateLock();
+    sound.lose();
+    const title = kind === "moves" ? t("outOfMovesTitle") : t("finishDrawTitle");
+    const text = t({ moves: "outOfMovesText", stalemate: "finishStalemate", lost: "finishLost", repeat: "finishRepeat" }[kind]);
+    say(title, "sad");
+    setTimeout(() => openEnd(kind === "moves" ? "⏳" : "🤝", title, text, 0, [
+      { label: t("tryAgain"), primary: true, run: () => startPuzzle(pz.index) },
+      { label: t("allRiddles"), run: () => show("practice") },
+    ]), 500);
   }
 
   function puzzleReply(uci, keepMessage) {
@@ -867,6 +940,8 @@
       S.busy = false;
       const m = S.chess.moveFromUci(uci);
       if (m) applyMove(m);
+      // Some riddles end on the computer's move (for example, it has to take your queen and it's stalemate).
+      if (S.puzzle.p.goal === "moves" && S.puzzle.step >= S.puzzle.p.solution.length) return puzzleSolved();
       if (!keepMessage || S.puzzle.p.goal === "moves") say(t("yourTurnAgain"), "think");
       else say(t("findMate"), "think");
       updateLock();
@@ -894,6 +969,7 @@
   function puzzleSolved() {
     const pz = S.puzzle;
     pz.solved = true;
+    pz.done = true;
     const slips = pz.mistakes + pz.hints;
     const stars = slips === 0 ? 3 : slips <= 2 ? 2 : 1;
     const all = store.get("stars", {});
@@ -914,23 +990,44 @@
     }, 600);
   }
 
-  $("btn-rhint").addEventListener("click", () => {
+  // Hints: Beginner riddles glow the piece (with the hint text), then the target square.
+  // Explorer and Master riddles give the idea in words first, then the piece, then the square.
+  // Every press counts against the stars.
+  $("btn-rhint").addEventListener("click", async () => {
     const pz = S.puzzle;
-    if (!pz || pz.solved || S.busy) return;
+    if (!pz || pz.done || S.busy) return;
     const p = pz.p;
-    let uci = p.solution[pz.step];
+    const tier = tierOfPuzzle(p);
+    if (pz.hintAt !== S.moves.length) { pz.hintAt = S.moves.length; pz.hintStage = 0; }
+    const firstStep = S.moves.length === 0;
+    const token = S.token, ply = S.moves.length;
+
+    let uci = null;
     const onScript = S.moves.every((u, i) => u === p.solution[i]);
-    if (!onScript && p.goal === "mate") {
-      const left = p.mateIn - playerMovesSoFar();
-      const ms = E.mateMoves(S.chess, left);
-      uci = ms.length ? E.uciOf(ms[0]) : uci;
+    if (p.goal === "finish") {
+      S.busy = true;
+      say(t("hintThinking"), "think");
+      uci = await askEngine("hint", p.fen, S.moves.slice(), 4);
+      S.busy = false;
+      if (token !== S.token || ply !== S.moves.length) return;
+    } else if (onScript) {
+      uci = p.solution[pz.step];
+    } else if (p.goal === "mate") {
+      const ms = E.mateMoves(S.chess, p.mateIn - playerMovesSoFar());
+      uci = ms.length ? E.uciOf(ms[0]) : null;
     }
     const m = uci && S.chess.moveFromUci(uci);
     if (!m) return;
     pz.hints++;
-    if (!S.hint) {
+
+    const textFirst = tier > 1 && firstStep;
+    const stage = pz.hintStage++;
+    if (textFirst && stage === 0) {
+      S.hint = null;
+      say(t("hintIdea") + " " + textOf(p).hint, "hint");
+    } else if (stage === (textFirst ? 1 : 0)) {
       S.hint = { from: m.from, to: -1 };
-      say(pz.step === 0 ? textOf(p).hint : t("hintGlow"), "hint");
+      say(firstStep && !textFirst ? textOf(p).hint : t("hintGlow"), "hint");
     } else {
       S.hint = { from: m.from, to: m.to };
       say(t("hintGlowTo", { sq: I18N.sq(E.sqName(m.to)) }), "hint");
@@ -953,7 +1050,10 @@
     const { p, index } = S.puzzle;
     const cat = CATEGORIES.find((c) => c.id === p.cat);
     $("riddle-cat").textContent = `${cat.emoji} ${catOf(cat).name}`;
-    $("riddle-count").textContent = I18N.sq(`${index + 1} / ${PUZZLES.length}`);
+    const tier = TIERS.find((x) => x.id === tierOfPuzzle(p));
+    $("riddle-count").textContent = p.goal === "finish" && S.puzzle
+      ? `⏳ ${movesLeftText(p.maxMoves - S.puzzle.used)}`
+      : tier.emoji + " " + I18N.sq(`${index + 1} / ${PUZZLES.length}`);
     $("riddle-title").textContent = textOf(p).title;
     $("riddle-prompt").textContent = textOf(p).prompt;
   }
