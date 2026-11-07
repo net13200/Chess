@@ -203,6 +203,9 @@
     S.moves = []; S.sans = [];
     S.selected = -1; S.targets = []; S.lastMove = null; S.hint = null;
     S.busy = false; S.over = false; S.puzzle = null;
+    // Hints: a few per computer game (kept when a game is continued), none in two-player games.
+    S.hintsLeft = S.mode === "computer" ? (opts.hintsLeft !== undefined ? opts.hintsLeft : HINTS_PER_GAME) : 0;
+    S.hintPly = -1;
     for (const u of opts.moves || []) {
       const m = S.chess.moveFromUci(u);
       if (!m) break;
@@ -218,6 +221,7 @@
     $("move-list").hidden = false;
     document.querySelector(".play").classList.remove("is-riddle");
     $("btn-flip").hidden = S.mode === "computer";
+    $("btn-hint").hidden = S.mode !== "computer";
     setPlayTitle();
     show("play");
     renderAll();
@@ -227,7 +231,7 @@
   function saveGame() {
     if (S.mode === "puzzle") return;
     if (S.over || !S.moves.length) { store.del("game"); return; }
-    store.set("game", { mode: S.mode, level: S.level, human: S.human, startFen: S.startFen, moves: S.moves, flipped: S.flipped });
+    store.set("game", { mode: S.mode, level: S.level, human: S.human, startFen: S.startFen, moves: S.moves, flipped: S.flipped, hintsLeft: S.hintsLeft });
   }
 
   const humanTurn = () =>
@@ -398,6 +402,7 @@
     renderBars();
     renderMoves();
     $("btn-undo").disabled = !S.moves.length || S.mode === "puzzle";
+    if (S.mode !== "puzzle") renderHintBtn();
   }
 
   // ---------- Messages ----------
@@ -684,8 +689,21 @@
     say(t("undoSay"), "happy");
   });
 
+  const HINTS_PER_GAME = 2;
+
+  function renderHintBtn() {
+    const b = $("btn-hint");
+    $("hint-count").textContent = S.mode === "computer" ? `(${S.hintsLeft})` : "";
+    const showing = S.hint && S.hintPly === S.moves.length;
+    b.disabled = S.mode === "computer" && S.hintsLeft <= 0 && !showing;
+    b.setAttribute("aria-label", t("hint") + ", " + t("hintsLeftLabel", { n: S.hintsLeft }));
+  }
+
   $("btn-hint").addEventListener("click", async () => {
-    if (!humanTurn()) return;
+    if (!humanTurn() || S.mode !== "computer") return;
+    // Asking again on the same move just repeats the suggestion, for free.
+    const repeat = S.hint && S.hintPly === S.moves.length;
+    if (!repeat && S.hintsLeft <= 0) return say(t("noHintsLeft"), "happy");
     const token = S.token, ply = S.moves.length;
     say(t("hintThinking"), "think");
     S.busy = true;
@@ -696,7 +714,9 @@
     if (!m) return turnMessage();
     S.hint = { from: m.from, to: m.to };
     S.selected = -1; S.targets = [];
+    if (!repeat) { S.hintsLeft--; S.hintPly = ply; saveGame(); }
     renderBoard();
+    renderHintBtn();
     const piece = pieceName(E.PIECE_CHARS[E.typeOf(m.piece)]);
     say(t("hintSay", { piece, from: I18N.sq(E.sqName(m.from)), to: I18N.sq(E.sqName(m.to)) }), "hint");
   });

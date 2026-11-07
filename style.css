@@ -506,6 +506,7 @@ button:focus-visible { outline: 3px solid var(--pink); outline-offset: 3px; }
 }
 .ctl-btn:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 1px 0 var(--btn-edge); }
 .ctl-btn:disabled { opacity: 0.4; cursor: default; }
+.hint-count { font-weight: 600; opacity: 0.7; }
 #btn-next { background: var(--next-bg); box-shadow: 0 4px 0 var(--next-edge), var(--shadow); }
 
 .move-list {

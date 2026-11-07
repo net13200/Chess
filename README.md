@@ -19,7 +19,7 @@ A friendly chess game for kids, part of [SugiGames](https://net13200.github.io/S
 
   Checkmate riddles accept any mate in time, not just the intended line, and the computer defends as stubbornly as it can. Explorer and Master hints come in three steps: the idea, then the piece, then the square.
 
-It's built for kids: big pieces with friendly faces, and dots that show where the tapped piece can go. You can tap or drag pieces. Undo and hints are always available, along with gentle sounds (which can be muted) and confetti when you win. It opens with the SugiGames logo animation and works offline once it has loaded.
+It's built for kids: big pieces with friendly faces, and dots that show where the tapped piece can go. You can tap or drag pieces. Undo is always available, plus 2 hints per game against the computer (two-player games have no hints), along with gentle sounds (which can be muted) and confetti when you win. It opens with the SugiGames logo animation and works offline once it has loaded.
 
 **Languages:** English and Hebrew (עברית), with a full right-to-left layout. Use the button on the home screen to switch. The app starts in Hebrew when the device language is Hebrew, and `?lang=he` or `?lang=en` in the address picks one directly.
 
