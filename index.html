@@ -5,7 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Sugi Chess</title>
 <meta name="description" content="A friendly chess game for kids: play a friend, play the computer at six levels, or solve chess riddles." />
-<meta name="theme-color" content="#7fbf9a" />
+<meta name="theme-color" content="#1d1a33" />
+<script>
+  // Pick the theme before anything is drawn, so there's no bright flash. Dark unless the child chose light.
+  (function () {
+    var theme = "dark";
+    try { if (JSON.parse(localStorage.getItem("sugichess.theme")) === "light") theme = "light"; } catch (e) {}
+    document.documentElement.setAttribute("data-theme", theme);
+    document.querySelector('meta[name="theme-color"]').setAttribute("content", theme === "dark" ? "#1d1a33" : "#7fbf9a");
+  })();
+</script>
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="icons/icon-192.png" />
 <link rel="manifest" href="manifest.webmanifest" />
@@ -47,6 +56,7 @@
 
 <!-- Home -->
 <main id="screen-home" class="screen is-active">
+  <button class="lang-btn theme-btn" id="btn-theme" aria-pressed="true">🌙</button>
   <button class="lang-btn" id="btn-lang" lang="he"><span aria-hidden="true">🌐</span> <span id="lang-label">עברית</span></button>
   <header class="hero">
     <a class="brand-link" href="https://net13200.github.io/SugiGames/" data-i18n-aria="allGames" aria-label="All SugiGames">

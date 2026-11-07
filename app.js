@@ -970,6 +970,7 @@
     lb.lang = he ? "en" : "he";
     lb.setAttribute("aria-label", t("langButtonLabel"));
     renderSoundBtn();
+    renderThemeBtn();
     renderHome();
     renderSetup();
     if (document.getElementById("screen-practice").classList.contains("is-active")) renderPractice();
@@ -980,6 +981,23 @@
       if (S.mode !== "puzzle" && !S.over && !S.busy) turnMessage();
     }
   }
+
+  // ---------- Theme (dark by default; the choice is set in index.html before drawing) ----------
+  function renderThemeBtn() {
+    const dark = document.documentElement.getAttribute("data-theme") !== "light";
+    const b = $("btn-theme");
+    b.textContent = dark ? "🌙" : "☀️";
+    b.setAttribute("aria-pressed", String(dark));
+    b.setAttribute("aria-label", t(dark ? "themeToLight" : "themeToDark"));
+  }
+  $("btn-theme").addEventListener("click", () => {
+    const next = document.documentElement.getAttribute("data-theme") === "light" ? "dark" : "light";
+    document.documentElement.setAttribute("data-theme", next);
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", next === "dark" ? "#1d1a33" : "#7fbf9a");
+    store.set("theme", next);
+    renderThemeBtn();
+  });
 
   $("btn-lang").addEventListener("click", () => {
     I18N.setLang(I18N.lang === "he" ? "en" : "he");
