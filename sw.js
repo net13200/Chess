@@ -4,7 +4,7 @@
  * when the network is too slow. This way an installed app picks up new versions
  * as soon as it's opened, instead of showing an old cached copy.
  */
-const CACHE = "sugichess-v3";
+const CACHE = "sugichess-v4";
 const ASSETS = [
   "./", "index.html", "style.css", "app.js", "engine.js", "pieces.js", "puzzles.js",
   "splash.js", "i18n.js", "ai-worker.js", "manifest.webmanifest",
